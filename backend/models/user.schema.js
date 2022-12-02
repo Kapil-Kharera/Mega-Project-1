@@ -36,7 +36,7 @@ const userSchema = mongoose.Schema(
 
 //challenge -1 encrypt password - with mongoose hooks
 userSchema.pre("save", async function(next) {
-    if (!this.modified("password")) return next();
+    if (!this.modified("password")) return next();//if password is not modified then return from here otherwise encrypt it
     this.password = await bcrypt.hash(this.password, 10);
     next();
 });
