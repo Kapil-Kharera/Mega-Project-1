@@ -3,6 +3,7 @@ import asyncHandler from '../services/asyncHandler';
 import CustomError from '../utils/customError';
 import { cookieOptions } from '../utils/cookieOptions';
 import mailHelper from '../utils/mailHelper';
+import crypto from 'crypto';
 
 /********************** 
 
@@ -64,7 +65,7 @@ export const login = asyncHandler(async (req, res) => {
         throw new CustomError("Please fill all fields", 400);
     }
 
-    const user = User.findOne({ email }).select("+password");
+    const user = await User.findOne({ email }).select("+password");
 
     if (!user) {
         throw new CustomError("Invalid Credentials", 400);
@@ -166,4 +167,55 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
         throw new CustomError(error.message || 'Email send failure', 500)
     }
+});
+
+
+/********************** 
+
+*@RESET_PASSWORD
+*@route http://localhost:4000/api/auth/password/reset/:resetToken
+*@description User will be able to reset password based on url token
+*@parameters token from url, password and confirmPassword
+*@return User Object
+
+**************************/
+
+export const resetPassword = asyncHandler(async (req, res) => {
+    const { token: resetToken } = req.params; //we calling the token here -> resetToken
+    const { password, confirmPassword } = req.body;
+
+    //encrypt the token again , just to match with encypted password in db
+    const resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+
+    const user = await User.findOne({
+        forgotPasswordToken: resetPasswordToken,
+        forgotPasswordExpiry: {$gt: Date.now()}
+    });
+
+    if (!user) {
+        throw new CustomError("Password token is invalid or expired", 400);
+    }
+
+    if (password !== confirmPassword) {
+        throw new CustomError("Password and ConfirmPassword does not match", 400);
+    }
+
+    user.password = password;
+    user.forgotPasswordToken = undefined;
+    user.forgotPasswordExpiry = undefined;
+
+    await user.save();
+
+    //create a token and send it to user
+    const token = user.getJwtToken();
+    user.password = undefined;
+
+    //make helper method for cookie
+    res.cookie("token", token, cookieOptions);
+    
+    res.status(200).json({
+        success: true,
+        user
+    })
+
 });
