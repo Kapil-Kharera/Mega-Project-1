@@ -219,3 +219,6 @@ export const resetPassword = asyncHandler(async (req, res) => {
     })
 
 });
+
+//TODO
+// create a controller for change password
